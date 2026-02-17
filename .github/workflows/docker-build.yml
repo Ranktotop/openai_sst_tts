@@ -11,10 +11,10 @@ jobs:
   build-gpu:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Qwen3-TTS
+      - name: Checkout Qwen3-TTS-Openai-Fastapi
         uses: actions/checkout@v4
         with:
-          repository: QwenLM/Qwen3-TTS
+          repository: groxaxo/Qwen3-TTS-Openai-Fastapi
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -46,10 +46,10 @@ jobs:
   build-cpu:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Qwen3-TTS
+      - name: Checkout Qwen3-TTS-Openai-Fastapi
         uses: actions/checkout@v4
         with:
-          repository: QwenLM/Qwen3-TTS
+          repository: groxaxo/Qwen3-TTS-Openai-Fastapi
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3

@@ -109,9 +109,10 @@ main(){
   log_i "Clone ${GIT_REPO} nach ${TMPDIR}…"
   git clone --depth 1 "$GIT_REPO" "$TMPDIR"
 
-  log_i "Baue Image $REF … (das kann dauern)"
+  log_i "Baue Image $REF (target: production)… (das kann dauern)"
   docker build \
     -f "$TMPDIR/Dockerfile" \
+    --target production \
     -t "$REF" \
     "$TMPDIR"
 
@@ -121,6 +122,9 @@ main(){
   log_i "Tag und push $REF_LATEST …"
   docker tag "$REF" "$REF_LATEST"
   docker push "$REF_LATEST"
+
+  log_i "Lösche temporäres Verzeichnis ${TMPDIR}…"
+  rm -rf "$TMPDIR"
 
   log_i "Fertig: $REF + $REF_LATEST"
 }

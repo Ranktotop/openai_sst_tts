@@ -14,10 +14,10 @@ GIT_REPO="https://github.com/groxaxo/Qwen3-TTS-Openai-Fastapi.git"
 
 usage(){
   cat >&2 <<EOF
-Usage: $(basename "$0") [--default-answer y|n] [--version X.X.X] [--help]
+Usage: $(basename "$0") [--override y|n] [--version X.X.X] [--help]
 
 Options:
-  -d, --default-answer [y|n]   Überschreiben ohne Rückfrage.
+  -d, --override [y|n]   Überschreiben ohne Rückfrage.
   -v, --version X.X.X          Image Version (default: $IMG_VERSION)
   -h, --help                   Diese Hilfe.
 EOF
@@ -26,10 +26,10 @@ EOF
 parse_args(){
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -d|--default-answer)
+      -d|--override)
         [[ $# -ge 2 ]] || { log_e "Option $1 erfordert [y|n]"; exit 2; }
         DEFAULT_ANSWER="$2"; shift 2;;
-      --default-answer=*)
+      --override=*)
         DEFAULT_ANSWER="${1#*=}"; shift;;
       -v|--version)
         [[ $# -ge 2 ]] || { log_e "Option $1 erfordert Version"; exit 2; }
@@ -44,7 +44,7 @@ parse_args(){
     case "$DEFAULT_ANSWER" in
       y|Y) DEFAULT_ANSWER="y";;
       n|N) DEFAULT_ANSWER="n";;
-      *) log_e "--default-answer erwartet 'y' oder 'n'"; exit 2;;
+      *) log_e "--override erwartet 'y' oder 'n'"; exit 2;;
     esac
   fi
 }
@@ -72,7 +72,7 @@ confirm_overwrite_if_exists(){
     log_w "Tag existiert bereits: $ref"
     if [[ -n "$DEFAULT_ANSWER" ]]; then
       [[ "$DEFAULT_ANSWER" == "y" ]] && { log_i "Überschreibe ohne Rückfrage."; return; }
-      log_i "Kein Überschreiben (--default-answer n). Abbruch."; exit 0
+      log_i "Kein Überschreiben (--override n). Abbruch."; exit 0
     fi
     read -r -p "Vorhandenes Image überschreiben? (y/N): " ans
     [[ "$ans" =~ ^[Yy]$ ]] || { log_i "Abgebrochen."; exit 0; }

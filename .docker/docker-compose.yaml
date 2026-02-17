@@ -2,24 +2,24 @@ version: "3.8"
 
 services:
   # =============================================================================
-  # Audio STT + TTS
+  # GPU Stack
   # =============================================================================
-
-  speaches_server:
-    # we use ports for making the service accessable by other containers
+ 
+  #  STT ========================================================================
+  speaches_server_gpu:
     ports:
       - "${SPEACHES_PORT:-8000}:8000"
       # see here: https://github.com/speaches-ai/speaches/blob/master/compose.cuda.yaml
     image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
-    profiles: ["stt", "all"]
+    profiles: ["stt_gpu", "all_gpu"]
     volumes:
-      - speaches_data:/home/ubuntu/.cache/huggingface/hub
+      - model_data:/home/ubuntu/.cache/huggingface/hub
     environment:
       API_KEY: ${SPEACHES_API_KEY}
       LOG_LEVEL: ${GLOBAL_LOG_LEVEL:-INFO}
-      WHISPER__INFERENCE_DEVICE: ${WHISPER_DEVICE:-cuda}
+      WHISPER__INFERENCE_DEVICE: cuda
       WHISPER__COMPUTE_TYPE: float16
-      WHISPER__LANGUAGE: de
+      # WHISPER__LANGUAGE: de
       ENABLE_UI: false
       WHISPER__MODEL: mobiuslabsgmbh/faster-whisper-large-v3-turbo
     restart: unless-stopped
@@ -29,14 +29,14 @@ services:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu]
+              capabilities: [compute, compat32, graphics, utility, video]
     labels:
-      - autoheal.whisper=true
+      - autoheal.speaches=true
       - autoheal.gpucontainer=true
     networks:
       default:
         aliases:
-          - speaches_server
+          - speaches_server_gpu
     healthcheck:
       test:
         [
@@ -52,69 +52,123 @@ services:
       retries: 3
       start_period: 60s
 
-
-  # ============================================
-  # Qwen3-TTS - OpenAI-kompatible TTS API
-  # ============================================
-  # GPU-Version mit Official Backend (empfohlen)
-  # 
-  # Unterstützte Sprachen: Deutsch, Englisch, Chinesisch,
-  # Japanisch, Koreanisch, Französisch, Russisch,
-  # Portugiesisch, Spanisch, Italienisch
-  #
-  # API-Endpunkt: POST /v1/audio/speech
-  # Web-Interface: http://localhost:8880
-  # ============================================
-
-  qwen3-tts:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: qwen3-tts
-    restart: unless-stopped
+  #  TTS ========================================================================
+  qwen3_server_gpu:
     ports:
-      - "8880:8880"
-    environment:
-      # Server-Konfiguration
-      - HOST=0.0.0.0
-      - PORT=8880
-      - WORKERS=1
-      - CORS_ORIGINS=*
-      
-      # Backend: official (stabil) oder vllm_omni (schneller)
-      - TTS_BACKEND=official
-      
-      # Modell: 1.7B für beste Qualität, 0.6B für weniger VRAM
-      # CustomVoice = 9 Premium-Stimmen + Instruktionen
-      # Base = Voice Cloning
-      # VoiceDesign = Stimme per Beschreibung erstellen
-      - TTS_MODEL_NAME=Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
-      
-      # Warmup beim Start (erste Requests schneller)
-      - TTS_WARMUP_ON_START=true
-      
-      # Voice Studio aktivieren (optional)
-      - ENABLE_VOICE_STUDIO=false
-      
+      - "${QWEN3_PORT:-8880}:8880"
+    image: ranktotop/qwen3-tts:gpu-latest
+    profiles: ["tts_gpu", "all_gpu"]
     volumes:
-      # Model-Cache persistent machen (wichtig!)
-      - huggingface_cache:/root/.cache/huggingface
-      # Optional: Eigene Stimmen
-      - ./voices:/app/voices
+      - model_data:/home/appuser/.cache/huggingface
+      #- voice_library:./voice_library
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8880
+      WORKERS: 1
+      CORS_ORIGINS: "*"
+      TTS_BACKEND: official
+      TTS_WARMUP_ON_START: false
+      # When using device_ids filter, the GPU appears as device 0 inside container
+      CUDA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      TTS_MODEL_NAME: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+      ENABLE_VOICE_STUDIO: ${ENABLE_VOICE_STUDIO:-false}
+    restart: unless-stopped
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+              count: all
+              capabilities: [compute, compat32, graphics, utility, video]
+    labels:
+      - autoheal.qwen3=true
+      - autoheal.gpucontainer=true
+    networks:
+      default:
+        aliases:
+          - qwen3_server_gpu
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s  # Modell-Download kann dauern
+      start_period: 120s
+
+
+  # =============================================================================
+  # CPU Stack
+  # =============================================================================
+ 
+  #  STT ========================================================================
+  speaches_server_cpu:
+    ports:
+      - "${SPEACHES_PORT:-8000}:8000"
+      # see here: https://github.com/speaches-ai/speaches/blob/master/compose.cuda.yaml
+    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    profiles: ["stt_cpu", "all_cpu"]
+    volumes:
+      - model_data:/home/ubuntu/.cache/huggingface/hub
+    environment:
+      API_KEY: ${SPEACHES_API_KEY}
+      LOG_LEVEL: ${GLOBAL_LOG_LEVEL:-INFO}
+      WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__COMPUTE_TYPE: float32
+      # WHISPER__LANGUAGE: de
+      ENABLE_UI: false
+      WHISPER__MODEL: mobiuslabsgmbh/faster-whisper-large-v3-turbo
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - speaches_server_cpu
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "-H",
+          "Authorization: Bearer ${SPEACHES_API_KEY}",
+          "http://localhost:8000/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  #  TTS ========================================================================
+  qwen3_server_cpu:
+    ports:
+      - "${QWEN3_PORT:-8880}:8880"
+    image: ranktotop/qwen3-tts:cpu-latest
+    profiles: ["tts_cpu", "all_cpu"]
+    volumes:
+      - model_data:/home/appuser/.cache/huggingface
+      #- voice_library:./voice_library
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8880
+      WORKERS: 1
+      CORS_ORIGINS: "*"
+      TTS_BACKEND: official
+      TTS_WARMUP_ON_START: false
+      TTS_MODEL_NAME: Qwen/Qwen3-TTS-12Hz-1.7B-Base
+      ENABLE_VOICE_STUDIO: ${ENABLE_VOICE_STUDIO:-false}
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - qwen3_server_cpu
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
 
 volumes:
-  huggingface_cache:
-    name: qwen3-tts-models
+  model_data:
+
+networks:
+  default:
